@@ -1,7 +1,7 @@
 import torch
 
 from .tuples import SessionBatch
-
+from typing import Dict, Tuple, Sequence, List, Type
 
 def flatten(dictionary, level=[]):
     """Flattens a dictionary by placing '.' between levels.
@@ -33,7 +33,7 @@ def flatten(dictionary, level=[]):
     return tmp_dict
 
 
-def transpose_lists(output: list[list]):
+def transpose_lists(output: List[list]):
     """Transposes the ordering of a list of lists."""
     return list(map(list, zip(*output)))
 

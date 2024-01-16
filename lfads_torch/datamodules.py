@@ -8,6 +8,7 @@ from pytorch_lightning.trainer.supporters import CombinedLoader
 from sklearn.model_selection import train_test_split
 from torch import Tensor
 from torch.utils.data import DataLoader, Dataset
+from typing import Dict, Tuple, Sequence, List, Type
 
 from .tuples import SessionBatch
 
@@ -22,7 +23,7 @@ def to_tensor(array):
     return torch.tensor(array, dtype=torch.float)
 
 
-def attach_tensors(datamodule, data_dicts: list[dict], extra_keys: list[str] = []):
+def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = []):
     hps = datamodule.hparams
     sv_gen = torch.Generator().manual_seed(hps.sv_seed)
     all_train_data, all_valid_data, all_test_data = [], [], []
@@ -112,7 +113,7 @@ def reshuffle_train_valid(data_dict, seed, ratio=None):
 
 class SessionDataset(Dataset):
     def __init__(
-        self, model_tensors: SessionBatch[Tensor], extra_tensors: tuple[Tensor]
+        self, model_tensors: Type[SessionBatch], extra_tensors: Tuple[Tensor]
     ):
         all_tensors = [*model_tensors, *extra_tensors]
         assert all(
@@ -134,8 +135,8 @@ class BasicDataModule(pl.LightningDataModule):
     def __init__(
         self,
         datafile_pattern: str,
-        batch_keys: list[str] = [],
-        attr_keys: list[str] = [],
+        batch_keys: List[str] = [],
+        attr_keys: List[str] = [],
         batch_size: int = 64,
         reshuffle_tv_seed: int = None,
         reshuffle_tv_ratio: float = None,

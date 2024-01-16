@@ -81,7 +81,7 @@ class Encoder(nn.Module):
             ci_len = hps.encod_seq_len - hps.ic_enc_seq_len
             ci = torch.cat([ci_fwd[:, :ci_len, :], ci_bwd[:, -ci_len:, :]], dim=2)
             # Add extra zeros if necessary for forward prediction
-            fwd_steps = hps.recon_seq_len - hps.encod_seq_len
+            fwd_steps = hps.recon_seq_len - hps.encod_seq_len + hps.ic_enc_seq_len
             ci = F.pad(ci, (0, 0, 0, fwd_steps, 0, 0))
         else:
             # Create a placeholder if there's no controller

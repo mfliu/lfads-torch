@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Tuple
+from typing import Any, Dict, Literal, Tuple, Union
 
 import pytorch_lightning as pl
 import torch
@@ -13,23 +13,24 @@ from .modules.priors import Null
 from .tuples import SessionBatch, SessionOutput
 from .utils import transpose_lists
 
+import copy
 
 class LFADS(pl.LightningModule):
     def __init__(
         self,
         encod_data_dim: int,
         encod_seq_len: int,
-        recon_seq_len: int,
+        recon_seq_len: List[int],
         ext_input_dim: int,
         ic_enc_seq_len: int,
         ic_enc_dim: int,
-        ci_enc_dim: int,
-        ci_lag: int,
-        con_dim: int,
-        co_dim: int,
+        ci_enc_dim: List[int],
+        ci_lag: List[int],
+        con_dim: List[int],
+        co_dim: List[int],
         ic_dim: int,
-        gen_dim: int,
-        fac_dim: int,
+        gen_dim: List[int],
+        fac_dim: List[int],
         dropout_rate: float,
         reconstruction: nn.ModuleList,
         variational: bool,
@@ -40,6 +41,7 @@ class LFADS(pl.LightningModule):
         train_aug_stack: augmentations.AugmentationStack,
         infer_aug_stack: augmentations.AugmentationStack,
         readin: nn.ModuleList,
+        region_readin: List[nn.ModuleList],
         readout: nn.ModuleList,
         loss_scale: float,
         recon_reduce_mean: bool,
@@ -55,13 +57,13 @@ class LFADS(pl.LightningModule):
         l2_start_epoch: int,
         l2_increase_epoch: int,
         l2_ic_enc_scale: float,
-        l2_ci_enc_scale: float,
-        l2_gen_scale: float,
-        l2_con_scale: float,
+        l2_ci_enc_scale: List[float],
+        l2_gen_scale: List[float],
+        l2_con_scale: List[float],
         kl_start_epoch: int,
         kl_increase_epoch: int,
         kl_ic_scale: float,
-        kl_co_scale: float,
+        kl_co_scale: List[float],
     ):
         """
         Initialize the LFADS model.
@@ -163,9 +165,12 @@ class LFADS(pl.LightningModule):
         self.save_hyperparameters(
             ignore=["ic_prior", "co_prior", "reconstruction", "readin", "readout"],
         )
+        decoder_hps = ["recon_seq_length", "ci_enc_dim", "ci_lag", "con_dim", "co_dim", "gen_dim", "fac_dim",\
+                       "l2_ci_enc_scale", "l2_gen_scale", "kl_co_scale"]
         # Store `co_prior` on `hparams` so it can be accessed in decoder
         self.hparams.co_prior = co_prior
         # Make sure the nn.ModuleList arguments are all the same length
+        ## MFL: These are nn.ModuleList and not one for each decoder because decoder outputs will be merged across regions and have the same reconstruction
         assert len(readin) == len(readout) == len(reconstruction)
         # Make sure that non-variational models use null priors
         if not variational:
@@ -174,10 +179,15 @@ class LFADS(pl.LightningModule):
         # Store the readin network
         self.readin = readin
         # Decide whether to use the controller
-        self.use_con = all([ci_enc_dim > 0, con_dim > 0, co_dim > 0])
+        self.use_con = [all([ci_enc_dim[x] > 0, con_dim[x] > 0, co_dim[x] > 0]) for x in in range(0, len(ci_enc_dim))]
         # Create the encoder and decoder
         self.encoder = Encoder(hparams=self.hparams)
-        self.decoder = Decoder(hparams=self.hparams)
+        self.decoders = []
+        for d in range(0, len(recon_seq_len)):
+            decoder_hparams = copy.deepcopy(self.hparams)
+            for dhp in decoder_hps:
+                decoder_hparams[dhp] = self.hparams[dhp][d]
+            self.decoders.append(Decoder(hparams=decoder_hparams))
         # Store the readout network
         self.readout = readout
         # Create object to manage reconstruction
@@ -226,24 +236,61 @@ class LFADS(pl.LightningModule):
         # Collect the external inputs
         ext_input = torch.cat([batch[s].ext_input for s in sessions])
         # Pass the data through the encoders
+        ## MFL: All controllers have the same initial condition, but each decoder (region) gets its own controller
         ic_mean, ic_std, ci = self.encoder(encod_data)
         # Create the posterior distribution over initial conditions
         ic_post = self.ic_prior.make_posterior(ic_mean, ic_std)
         # Choose to take a sample or to pass the mean
-        ic_samp = ic_post.rsample() if sample_posteriors else ic_mean
-        # Unroll the decoder to estimate latent states
-        (
-            gen_init,
-            gen_states,
-            con_states,
-            co_means,
-            co_stds,
-            gen_inputs,
-            factors,
-        ) = self.decoder(ic_samp, ci, ext_input, sample_posteriors=sample_posteriors)
+        ## MFL: In this instance, ic_samp shouldn't be used, because g0 for each area should just be some linear transformation 
+        ## on the pre-trial activity of each region. ALM encoder and controller only determines the controller input for each region
+        ## MFL: Have each batch of data also contain an "ic_data" field--this is the pre-trial data used to determine the initial
+        ## condition for each generator? 
+        ## MFL: region_readout is a List of ModuleLists--each ModuleList is a list of linear layers for a region in each session
+        # ic_samp = ic_post.rsample() if sample_posteriors else ic_mean
+        all_ic_samp = []
+        for region_idx in range(0, len(region_readin)):
+            ic_samps.append([self.region_readin[region_idx][s](batch[s].ic_data[region_idx]) for s in sessions])
+        
+        all_gen_init = []
+        all_gen_states = []
+        all_con_states = []
+        all_co_means = []
+        all_co_stds = []
+        all_gen_inputs = []
+        all_factors = []
+        for dIdx in range(0, len(self.decoders)):
+            decoder = self.decoders[dIdx]
+            ic_samp = all_ic_samp[dIdx]
+            # Unroll the decoder to estimate latent states
+            (
+                gen_init,
+                gen_states,
+                con_states,
+                co_means,
+                co_stds,
+                gen_inputs,
+                factors,
+            ) = decoder(ic_samp, ci, ext_input, sample_posteriors=sample_posteriors)
+            all_gen_init.append(gen_init)
+            all_gen_states.append(gen_states)
+            all_con_states.append(con_states)
+            all_co_means.append(co_means)
+            all_co_stds.append(co_stds)
+            all_gen_inputs.append(gen_inputs)
+            all_factors.append(factors)
+        ## MFL: Need to concatenate all_* variables along neurons dimension 
+        all_gen_init = torch.cat(all_gen_init, dim=1)
+        all_gen_states = torch.cat(all_gen_states, dim=1)
+        all_con_states = torch.cat(all_con_states, dim=1)
+        all_co_means = torch.cat(all_co_means, dim=1)
+        all_co_stds = torch.cat(all_co_stds, dim=1)
+        all_gen_inputs = torch.cat(all_gen_inputs, dim=1)
+        all_factors = torch.cat(all_factors, dim=1)
+        all_ic_samp = torch.cat(all_ic_samp, dim=1)
+        
         # Convert the factors representation into output distribution parameters
-        factors = torch.split(factors, batch_sizes)
-        output_params = [self.readout[s](f) for s, f in zip(sessions, factors)]
+        all_factors = torch.split(all_factors, batch_sizes)
+        output_params = [self.readout[s](f) for s, f in zip(sessions, all_factors)]
         # Separate parameters of the output distribution
         output_params = [
             self.recon[s].reshape_output_params(op)
@@ -260,20 +307,20 @@ class LFADS(pl.LightningModule):
             [
                 output_params,
                 factors,
-                torch.split(ic_mean, batch_sizes),
-                torch.split(ic_std, batch_sizes),
-                torch.split(co_means, batch_sizes),
-                torch.split(co_stds, batch_sizes),
-                torch.split(gen_states, batch_sizes),
-                torch.split(gen_init, batch_sizes),
-                torch.split(gen_inputs, batch_sizes),
-                torch.split(con_states, batch_sizes),
+                torch.split(all_ic_samp, batch_sizes),
+                #torch.split(ic_std, batch_sizes),
+                torch.split(all_co_means, batch_sizes),
+                torch.split(all_co_stds, batch_sizes),
+                torch.split(all_gen_states, batch_sizes),
+                torch.split(all_gen_init, batch_sizes),
+                torch.split(all_gen_inputs, batch_sizes),
+                torch.split(all_con_states, batch_sizes),
             ]
         )
         # Return the parameter estimates and all intermediate activations
         return {s: SessionOutput(*o) for s, o in zip(sessions, output)}
 
-    def configure_optimizers(self):
+    def configure_optimizers(self) -> Union[torch.optim.Optimizer, Dict[str, Any]]:
         """
         Configures the optimizers for the model.
 
@@ -342,7 +389,7 @@ class LFADS(pl.LightningModule):
         batch: Dict[int, Tuple[SessionBatch, Tuple[torch.Tensor]]],
         batch_idx: int,
         split: Literal["train", "valid"],
-    ):
+    ) -> torch.Tensor:
         hps = self.hparams
         # Check that the split argument is valid
         assert split in ["train", "valid"]
@@ -467,7 +514,7 @@ class LFADS(pl.LightningModule):
 
     def training_step(
         self, batch: Dict[int, Tuple[SessionBatch, Tuple[torch.Tensor]]], batch_idx: int
-    ):
+    ) -> torch.Tensor:
         """
         Performs a training step.
 
@@ -488,7 +535,7 @@ class LFADS(pl.LightningModule):
 
     def validation_step(
         self, batch: Dict[int, Tuple[SessionBatch, Tuple[torch.Tensor]]], batch_idx: int
-    ):
+    ) -> torch.Tensor:
         """
         Performs a validation step.
 
@@ -512,7 +559,7 @@ class LFADS(pl.LightningModule):
         batch: Dict[int, Tuple[SessionBatch, Tuple[torch.Tensor]]],
         batch_idx: int,
         sample_posteriors=True,
-    ):
+    ) -> Dict[int, SessionOutput]:
         """
         Performs a prediction step.
 
