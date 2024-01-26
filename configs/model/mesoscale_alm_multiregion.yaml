@@ -23,25 +23,47 @@ readin:
 region_readin:
   - _target_: torch.nn.ModuleList
     modules:
-      - _target_: lfads_torch.modules.readin_readout.FanInLinear
-        in_features: ${model.recon_data_dim[0]}
+      - _target_: torch.nn.Linear
+        in_features:  9950 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
         out_features:  ${model.ci_enc_dim[0]}
   - _target_: torch.nn.ModuleList
     modules:
-      - _target_: lfads_torch.modules.readin_readout.FanInLinear
-        in_features: ${model.recon_data_dim[1]}
+      - _target_: torch.nn.Linear
+        in_features: 250 #${model.recon_data_dim[1]}
         out_features: ${model.ci_enc_dim[1]}
   - _target_: torch.nn.ModuleList
     modules:
-      - _target_: lfads_torch.modules.readin_readout.FanInLinear
-        in_features: ${model.recon_data_dim[2]}
+      - _target_: torch.nn.Linear
+        in_features: 50 #${model.recon_data_dim[2]}
         out_features: ${model.ci_enc_dim[2]}
   - _target_: torch.nn.ModuleList
     modules:
-      - _target_: lfads_torch.modules.readin_readout.FanInLinear
-        in_features: ${model.recon_data_dim[3]}
+      - _target_: torch.nn.Linear
+        in_features: 14100 #${model.recon_data_dim[3]}
         out_features: ${model.ci_enc_dim[3]}
-  
+        
+region_std:
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features:  9950 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
+        out_features:  ${model.ci_enc_dim[0]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 250 #${model.recon_data_dim[1]}
+        out_features: ${model.ci_enc_dim[1]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 50 #${model.recon_data_dim[2]}
+        out_features: ${model.ci_enc_dim[2]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 14100 #${model.recon_data_dim[3]}
+        out_features: ${model.ci_enc_dim[3]}
+        
 readout:
   _target_: torch.nn.ModuleList
   modules:
@@ -84,10 +106,22 @@ co_prior:
     nvar: 0.1
     shape: ${model.co_dim[3]}
 ic_prior:
-  _target_: lfads_torch.modules.priors.MultivariateNormal
-  mean: 0
-  variance: 0.1
-  shape: ${model.ic_dim}
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
 ic_post_var_min: 1.0e-4
 
 # --------- misc --------- #
@@ -116,5 +150,5 @@ l2_gen_scale: [1.0, 1.0, 1.0, 1.0]
 l2_con_scale: [1.0, 1.0, 1.0, 1.0]
 kl_start_epoch: 10
 kl_increase_epoch: 80
-kl_ic_scale: 1.0
+kl_ic_scale: [1.0, 1.0, 1.0, 1.0]
 kl_co_scale: [1.0, 1.0, 1.0, 1.0]

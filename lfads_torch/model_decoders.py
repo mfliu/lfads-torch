@@ -37,13 +37,14 @@ class LFADS(pl.LightningModule):
         reconstruction: nn.ModuleList,
         variational: bool,
         co_prior: List[nn.Module],
-        ic_prior: nn.Module,
+        ic_prior: List[nn.Module],
         ic_post_var_min: float,
         cell_clip: float,
         train_aug_stack: augmentations.AugmentationStack,
         infer_aug_stack: augmentations.AugmentationStack,
         readin: nn.ModuleList,
         region_readin: List[nn.ModuleList],
+        region_std: List[nn.ModuleList],
         readout: nn.ModuleList,
         loss_scale: float,
         recon_reduce_mean: bool,
@@ -64,7 +65,7 @@ class LFADS(pl.LightningModule):
         l2_con_scale: List[float],
         kl_start_epoch: int,
         kl_increase_epoch: int,
-        kl_ic_scale: float,
+        kl_ic_scale: List[float],
         kl_co_scale: List[float],
     ):
         """
@@ -183,6 +184,7 @@ class LFADS(pl.LightningModule):
         # Store the readin network
         self.readin = readin
         self.region_readin = region_readin
+        self.region_std = region_std
         # Decide whether to use the controller
         self.use_con = [all([ci_enc_dim[x] > 0, con_dim[x] > 0, co_dim[x] > 0]) for x in range(0, len(ci_enc_dim))]
         # Create the encoder and decoder
@@ -242,26 +244,43 @@ class LFADS(pl.LightningModule):
         encod_data = torch.cat([self.readin[s](batch[s].encod_data) for s in sessions])
         # Collect the external inputs
         ext_input = torch.cat([batch[s].ext_input for s in sessions])
-        print(encod_data.shape)
         # Pass the data through the encoders
         ## MFL: All controllers have the same initial condition, but each decoder (region) gets its own controller
         ic_mean, ic_std, ci = self.encoder(encod_data)
+        
         # Create the posterior distribution over initial conditions
-        ic_post = self.ic_prior.make_posterior(ic_mean, ic_std)
+        #ic_post = self.ic_prior.make_posterior(ic_mean, ic_std)
         # Choose to take a sample or to pass the mean
+        # ic_samp = ic_post.rsample() if sample_posteriors else ic_mean
         ## MFL: In this instance, ic_samp shouldn't be used, because g0 for each area should just be some linear transformation 
         ## on the pre-trial activity of each region. ALM encoder and controller only determines the controller input for each region
-        ## MFL: Have each batch of data also contain an "ic_data" field--this is the pre-trial data used to determine the initial
-        ## condition for each generator? 
         ## MFL: region_readout is a List of ModuleLists--each ModuleList is a list of linear layers for a region in each session
-        # ic_samp = ic_post.rsample() if sample_posteriors else ic_mean
         all_ic_samp = []
+        all_ic_std = []
         for region_idx in range(0, len(self.region_readin)):
             region_name = self.hparams.recon_region_name[region_idx]
-            print(batch[0])
-            print(getattr(batch[0], f"train_ic_data_{region_name}"))
-            all_ic_samp.append([self.region_readin[region_idx][s](batch[s].ic_data[region_idx]) for s in sessions])
+            recon_region_map = batch[0].recon_region_map[0]
+            
+            region_start = 0
+            if region_idx > 0:
+                region_start = recon_region_map[region_idx-1]
+            region_end = recon_region_map[region_idx]
+            session_ic_samp = []
+            session_ic_std = []
+            for s in sessions:
+                ic_data = torch.flatten(batch[s].recon_data[:, 0:50, region_start:region_end], start_dim=1) 
+                input_layer = self.region_readin[region_idx][s].to(self.device)
+                std_layer = self.region_std[region_idx][s].to(self.device)
+                ic_mean = input_layer(ic_data)
+                ic_std = torch.sqrt(torch.exp(std_layer(ic_data)) + self.hparams.ic_post_var_min)
+                ic_post = self.ic_prior[region_idx].make_posterior(ic_mean, ic_std)
+                ic_samp = ic_post.rsample() if sample_posteriors else ic_mean
+                session_ic_samp.append(ic_samp)
+                session_ic_std.append(ic_std)
+            all_ic_samp.append(torch.cat(session_ic_samp))
+            all_ic_std.append(torch.cat(session_ic_std))
         
+        ## MFL annotation: Run decoder
         all_gen_init = []
         all_gen_states = []
         all_con_states = []
@@ -270,8 +289,8 @@ class LFADS(pl.LightningModule):
         all_gen_inputs = []
         all_factors = []
         for dIdx in range(0, len(self.decoders)):
-            decoder = self.decoders[dIdx]
-            ci_samp = ci[dIdx]
+            decoder = self.decoders[dIdx].to(self.device)
+            ci_samp = all_ic_samp[dIdx].to(self.device)
             # Unroll the decoder to estimate latent states
             (
                 gen_init,
@@ -281,7 +300,7 @@ class LFADS(pl.LightningModule):
                 co_stds,
                 gen_inputs,
                 factors,
-            ) = decoder(ci_samp, ci, ext_input, sample_posteriors=sample_posteriors)
+            ) = decoder(ci_samp, ci[dIdx], ext_input, sample_posteriors=sample_posteriors)
             all_gen_init.append(gen_init)
             all_gen_states.append(gen_states)
             all_con_states.append(con_states)
@@ -290,14 +309,15 @@ class LFADS(pl.LightningModule):
             all_gen_inputs.append(gen_inputs)
             all_factors.append(factors)
         ## MFL: Need to concatenate all_* variables along neurons dimension 
-        all_gen_init = torch.cat(all_gen_init, dim=1)
-        all_gen_states = torch.cat(all_gen_states, dim=1)
-        all_con_states = torch.cat(all_con_states, dim=1)
-        all_co_means = torch.cat(all_co_means, dim=1)
-        all_co_stds = torch.cat(all_co_stds, dim=1)
-        all_gen_inputs = torch.cat(all_gen_inputs, dim=1)
-        all_factors = torch.cat(all_factors, dim=1)
-        all_ic_samp = torch.cat(all_ic_samp, dim=1)
+        all_gen_init = torch.cat(all_gen_init, dim=-1)
+        all_gen_states = torch.cat(all_gen_states, dim=-1)
+        all_con_states = torch.cat(all_con_states, dim=-1)
+        all_co_means = torch.cat(all_co_means, dim=-1)
+        all_co_stds = torch.cat(all_co_stds, dim=-1)
+        all_gen_inputs = torch.cat(all_gen_inputs, dim=-1)
+        all_factors = torch.cat(all_factors, dim=-1)
+        all_ic_samp = torch.cat(all_ic_samp, dim=-1)
+        all_ic_std = torch.cat(all_ic_std, dim=-1)
         
         # Convert the factors representation into output distribution parameters
         all_factors = torch.split(all_factors, batch_sizes)
@@ -317,9 +337,9 @@ class LFADS(pl.LightningModule):
         output = transpose_lists(
             [
                 output_params,
-                factors,
+                all_factors,
                 torch.split(all_ic_samp, batch_sizes),
-                #torch.split(ic_std, batch_sizes),
+                torch.split(all_ic_std, batch_sizes),
                 torch.split(all_co_means, batch_sizes),
                 torch.split(all_co_stds, batch_sizes),
                 torch.split(all_gen_states, batch_sizes),
@@ -453,9 +473,36 @@ class LFADS(pl.LightningModule):
         ic_std = torch.cat([output[s].ic_std for s in sessions])
         co_means = torch.cat([output[s].co_means for s in sessions])
         co_stds = torch.cat([output[s].co_stds for s in sessions])
+        
         # Compute the KL penalty on posteriors
-        ic_kl = self.ic_prior(ic_mean, ic_std) * self.hparams.kl_ic_scale
-        co_kl = self.co_prior(co_means, co_stds) * self.hparams.kl_co_scale
+        region_units = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(self.hparams.recon_data_dim), dim=0)]).to(self.device)
+        ic_dims = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(self.hparams.ci_enc_dim), dim=0)]).to(self.device)
+        co_dims = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(self.hparams.co_dim), dim=0)]).to(self.device)
+        ic_kl = 0.0
+        co_kl = 0.0
+        for region_idx in range(0, len(self.hparams.recon_region_name)):
+            region_name = self.hparams.recon_region_name[region_idx]
+            # region_start = region_units[region_idx]
+            # region_stop = region_units[region_idx+1]
+            ic_start = ic_dims[region_idx]
+            ic_stop = ic_dims[region_idx+1]
+            co_start = co_dims[region_idx]
+            co_stop = co_dims[region_idx+1]
+            ic_prior = self.ic_prior[region_idx].to(self.device)
+            kl_ic_scale = getattr(self.hparams, "kl_ic_scale_" + region_name)
+            co_prior = self.co_prior[region_idx].to(self.device)
+            kl_co_scale = getattr(self.hparams, "kl_co_scale_" + region_name) #[region_idx]
+            ic_mean_region = ic_mean[:, ic_start:ic_stop].to(self.device)
+            ic_std_region = ic_std[:, ic_start:ic_stop].to(self.device)
+            co_mean_region = co_means[:, :, co_start:co_stop].to(self.device)
+            co_std_region = co_stds[:, :, co_start:co_stop].to(self.device)
+            
+            ic_kl_region = ic_prior(ic_mean_region, ic_std_region) * kl_ic_scale
+            co_kl_region = co_prior(co_mean_region, co_std_region) * kl_co_scale
+            ic_kl += ic_kl_region
+            co_kl += co_kl_region
+        #ic_kl = self.ic_prior(ic_mean, ic_std) * self.hparams.kl_ic_scale
+        #co_kl = self.co_prior(co_means, co_stds) * self.hparams.kl_co_scale
         # Compute ramping coefficients
         l2_ramp = self._compute_ramp(hps.l2_start_epoch, hps.l2_increase_epoch)
         kl_ramp = self._compute_ramp(hps.kl_start_epoch, hps.kl_increase_epoch)
@@ -607,19 +654,33 @@ class LFADS(pl.LightningModule):
         Logs hyperparameters that may change during PBT.
         """
         # Log hyperparameters that may change during PBT
-        self.log_dict(
-            {
-                "hp/lr_init": self.hparams.lr_init,
-                "hp/dropout_rate": self.hparams.dropout_rate,
-                "hp/l2_ic_enc_scale": self.hparams.l2_ic_enc_scale,
-                "hp/l2_ci_enc_scale": self.hparams.l2_ci_enc_scale,
-                "hp/l2_gen_scale": self.hparams.l2_gen_scale,
-                "hp/l2_con_scale": self.hparams.l2_con_scale,
-                "hp/kl_co_scale": self.hparams.kl_co_scale,
-                "hp/kl_ic_scale": self.hparams.kl_ic_scale,
-                "hp/weight_decay": self.hparams.weight_decay,
+        hp_dict = {
+            "hp/lr_init": self.hparams.lr_init,
+            "hp/dropout_rate": self.hparams.dropout_rate,
+            "hp/l2_ic_enc_scale": self.hparams.l2_ic_enc_scale,
+            #"hp/l2_ci_enc_scale": self.hparams.l2_ci_enc_scale,
+            #"hp/l2_gen_scale": self.hparams.l2_gen_scale,
+            #"hp/l2_con_scale": self.hparams.l2_con_scale,
+            #"hp/kl_co_scale": self.hparams.kl_co_scale,
+            #"hp/kl_ic_scale": self.hparams.kl_ic_scale,
+            "hp/weight_decay": self.hparams.weight_decay,
             }
-        )
+            
+        for region_idx in range(0, len(self.hparams.recon_region_name)):
+            region_name = self.hparams.recon_region_name[region_idx]
+            l2_ci_enc_scale_region = self.hparams.l2_ci_enc_scale[region_idx]
+            l2_gen_scale_region = self.hparams.l2_gen_scale[region_idx]
+            l2_con_scale_region = self.hparams.l2_con_scale[region_idx]
+            kl_co_scale_region = self.hparams.kl_co_scale[region_idx]
+            kl_ic_scale_region = self.hparams.kl_ic_scale[region_idx]
+            hp_dict["hp/l2_ci_enc_scale_ " + region_name] = l2_ci_enc_scale_region
+            hp_dict["hp/l2_gen_scale_" + region_name] = l2_gen_scale_region
+            hp_dict["hp/l2_con_scale_" + region_name] = l2_con_scale_region
+            hp_dict["hp/kl_co_scale_" + region_name] = kl_co_scale_region
+            hp_dict["hp/kl_ic_scale_" + region_name] = kl_ic_scale_region
+        
+        self.log_dict(hp_dict)
+
         # Log CD rate if CD is being used
         for aug in self.train_aug_stack.batch_transforms:
             if hasattr(aug, "cd_rate"):

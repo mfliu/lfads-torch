@@ -55,7 +55,6 @@ class DecoderCell(nn.Module):
 
     def forward(self, input, h_0, sample_posteriors=True):
         hps = self.hparams
-
         # Split the state up into variables of interest
         gen_state, con_state, co_mean, co_std, gen_input, factor = torch.split(
             h_0, self.state_dims, dim=1
@@ -124,7 +123,6 @@ class Decoder(nn.Module):
 
     def forward(self, ic_samp, ci, ext_input, sample_posteriors=True):
         hps = self.hparams
-
         # Get size of current batch (may be different than hps.batch_size)
         batch_size = ic_samp.shape[0]
         # Calculate initial generator state and pass it to the RNN with dropout rate

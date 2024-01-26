@@ -15,9 +15,9 @@ from lfads_torch.extensions.tune import (
 from lfads_torch.run_model import run_model
 
 # ---------- OPTIONS ----------
-PROJECT_STR = "almproj_pbt"
-DATASET_STR = "mesoscale_alm"
-RUN_TAG = datetime.now().strftime("%y%m%d") + "_almproj_pbt"
+PROJECT_STR = "almproj_pbt_multiregion"
+DATASET_STR = "mesoscale_alm_multiregion"
+RUN_TAG = datetime.now().strftime("%y%m%d") + "_almproj_pbt_multiregion"
 RUN_DIR = Path("/results/runs") / PROJECT_STR / DATASET_STR / RUN_TAG
 HYPERPARAM_SPACE = {
     "model.lr_init": HyperParam(
@@ -29,10 +29,25 @@ HYPERPARAM_SPACE = {
     "model.train_aug_stack.transforms.0.cd_rate": HyperParam(
         0.01, 0.7, explore_wt=0.3, enforce_limits=True, init=0.5, sample_fn="uniform"
     ),
-    "model.kl_co_scale": HyperParam(1e-6, 1e-4, explore_wt=0.8),
-    "model.kl_ic_scale": HyperParam(1e-6, 1e-3, explore_wt=0.8),
-    "model.l2_gen_scale": HyperParam(1e-4, 1e-0, explore_wt=0.8),
-    "model.l2_con_scale": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    # "model.kl_co_scale.0": HyperParam(1e-6, 1e-4, explore_wt=0.8),
+    # "model.kl_ic_scale.1": HyperParam(1e-6, 1e-3, explore_wt=0.8),
+    # "model.l2_gen_scale.2": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    # "model.l2_con_scale.3": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    
+#     "model.kl_co_scale_FRP": HyperParam(1e-6, 1e-4, explore_wt=0.8),
+#     "model.kl_ic_scale_FRP": HyperParam(1e-6, 1e-3, explore_wt=0.8),
+#     "model.l2_gen_scale_FRP": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+#     "model.l2_con_scale_FRP": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    
+#     "model.kl_co_scale_STR": HyperParam(1e-6, 1e-4, explore_wt=0.8),
+#     "model.kl_ic_scale_STR": HyperParam(1e-6, 1e-3, explore_wt=0.8),
+#     "model.l2_gen_scale_STR": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+#     "model.l2_con_scale_STR": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    
+#     "model.kl_co_scale_TH": HyperParam(1e-6, 1e-4, explore_wt=0.8),
+#     "model.kl_ic_scale_TH": HyperParam(1e-6, 1e-3, explore_wt=0.8),
+#     "model.l2_gen_scale_TH": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+#     "model.l2_con_scale_TH": HyperParam(1e-4, 1e-0, explore_wt=0.8),
 }
 # ------------------------------
 
@@ -62,7 +77,7 @@ burn_in_period = 80 + 25
 analysis = tune.run(
     tune.with_parameters(
         run_model,
-        config_path="../configs/almproj_pbt.yaml",
+        config_path="../configs/almproj_pbt_multiregion.yaml",
         do_posterior_sample=False,
     ),
     metric=metric,
@@ -104,6 +119,6 @@ best_ckpt_dir = best_model_dir / Path(analysis.best_checkpoint._local_path).name
 run_model(
     overrides=mandatory_overrides,
     checkpoint_dir=best_ckpt_dir,
-    config_path="../configs/almproj_pbt.yaml",
+    config_path="../configs/almproj_pbt_multiregion.yaml",
     do_train=False,
 )

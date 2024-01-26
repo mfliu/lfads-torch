@@ -8,6 +8,7 @@ SessionBatch = namedtuple(
         "ext_input",
         "truth",
         "sv_mask",
+        "recon_region_map",
     ],
 )
 

@@ -1,6 +1,6 @@
 defaults:
-  - model: mesoscale_alm
-  - datamodule: mesoscale_alm
+  - model: mesoscale_alm_multiregion
+  - datamodule: mesoscale_alm_multiregion
   - callbacks: default
   - _self_
 

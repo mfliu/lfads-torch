@@ -28,7 +28,6 @@ def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = [
     sv_gen = torch.Generator().manual_seed(hps.sv_seed)
     all_train_data, all_valid_data, all_test_data = [], [], []
     for data_dict in data_dicts:
-        print("data_dict ", data_dict.keys(), extra_keys)
         def create_session_batch(prefix, extra_keys=[]):
             # Ensure that the data dict has all of the required keys
             #assert all(f"{prefix}_{key}_{region_name}" in data_dict for key in MANDATORY_KEYS[prefix])
@@ -38,8 +37,10 @@ def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = [
             # Load the recon_data
             if f"{prefix}_recon_data" in data_dict:
                 recon_data = to_tensor(data_dict[f"{prefix}_recon_data"])
+                recon_region_map = data_dict[f"{prefix}_recon_region_map"]
             else:
                 recon_data = torch.zeros(n_samps, 0, 0)
+                recon_region_map = data_dict[f"{prefix}_recon_region_map"]
             if hps.sv_rate > 0:
                 # Create sample validation mask # TODO: Sparse and use complement?
                 bern_p = 1 - hps.sv_rate if prefix != "test" else 1.0
@@ -60,19 +61,7 @@ def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = [
                 truth = to_tensor(data_dict[f"{prefix}_truth"]) / cf
             else:
                 truth = torch.full((n_samps, 0, 0), float("nan"))
-            session_batch_dict = {}
-            for key in data_dict.keys():
-                if key.find("ic_data") > -1:
-                    try:
-                        session_batch_dict[key.split(prefix)[1][1:]] = data_dict[key]
-                    except:
-                        continue
-            session_batch_dict["encod_data"] = encod_data
-            session_batch_dict["recon_data"] = recon_data
-            session_batch_dict["ext_input"] = ext_input
-            session_batch_dict["truth"] = truth
-            session_batch_dict["sv_mask"] = sv_mask
-            sb = SessionBatch(**session_batch_dict)
+
             # Remove unnecessary data during IC encoder segment
             sv_mask = sv_mask[:, hps.dm_ic_enc_seq_len :]
             ext_input = ext_input[:, hps.dm_ic_enc_seq_len :]
@@ -80,7 +69,14 @@ def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = [
             # Extract data for any extra keys
             other = [to_tensor(data_dict[f"{prefix}_{k}"]) for k in extra_keys]
             return (
-                sb,
+                SessionBatch(
+                    encod_data=encod_data,
+                    recon_data=recon_data,
+                    ext_input=ext_input,
+                    truth=truth,
+                    sv_mask=sv_mask,
+                    recon_region_map=recon_region_map,
+                ),
                 tuple(other),
             )
 
@@ -123,10 +119,11 @@ class SessionDataset(Dataset):
         self, model_tensors: Type[SessionBatch], extra_tensors: Tuple[Tensor]
     ):
         all_tensors = [*model_tensors, *extra_tensors]
-        #assert all(
-        #    all_tensors[0].size(0) == tensor.size(0) for tensor in all_tensors
-        #), "Size mismatch between tensors"
-        self.model_tensors = model_tensors
+        #all_tensors = list(filter(lambda x: isinstance(x, torch.Tensor), all_tensors)) ## filter out the regions field
+        # assert all(
+        #     all_tensors[0].size(0) == tensor.size(0) for tensor in all_tensors
+        # ), "Size mismatch between tensors"
+        self.model_tensors = model_tensors #list(filter(lambda x: isinstance(x, torch.Tensor), model_tensors))
         self.extra_tensors = extra_tensors
 
     def __getitem__(self, index):
