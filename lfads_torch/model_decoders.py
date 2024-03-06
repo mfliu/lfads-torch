@@ -67,6 +67,26 @@ class LFADS(pl.LightningModule):
         kl_increase_epoch: int,
         kl_ic_scale: List[float],
         kl_co_scale: List[float],
+        
+        kl_co_scale_CTX: float,
+        kl_ic_scale_CTX: float,
+        l2_gen_scale_CTX: float,
+        l2_con_scale_CTX: float, 
+
+        kl_co_scale_FRP: float,
+        kl_ic_scale_FRP: float,
+        l2_gen_scale_FRP: float,
+        l2_con_scale_FRP: float,
+
+        kl_co_scale_STR: float,
+        kl_ic_scale_STR: float,
+        l2_gen_scale_STR: float,
+        l2_con_scale_STR: float,
+
+        kl_co_scale_TH: float,
+        kl_ic_scale_TH: float,
+        l2_gen_scale_TH: float,
+        l2_con_scale_TH: float
     ):
         """
         Initialize the LFADS model.
