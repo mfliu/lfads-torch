@@ -1,21 +1,21 @@
 _target_: lfads_torch.model_decoders.LFADS
 
 # --------- architecture --------- #
-encod_data_dim: 143
-recon_data_dim: [199, 5, 1, 282]
-recon_region_name: ["CTX", "FRP", "STR", "TH"]
+encod_data_dim: 128
+recon_data_dim: [30, 223, 5, 26, 59, 128]
+recon_region_name: ["BS", "CTX", "FRP", "HPF", "MB", "TH"]
 encod_seq_len: 550
-recon_seq_len: [550, 550, 550, 550]
+recon_seq_len: [550, 550, 550, 550, 550, 550]
 ext_input_dim: 0
 ic_enc_seq_len: 50
 ic_enc_dim: 64
-ci_enc_dim: [64, 64, 64, 64]
-ci_lag: [1, 1, 1, 1]
-con_dim: [64, 64, 64, 64]
-co_dim: [4, 4, 4, 4]
+ci_enc_dim: [64, 64, 64, 64, 64, 64]
+ci_lag: [1, 1, 1, 1, 1, 1]
+con_dim: [64, 64, 64, 64, 64, 64]
+co_dim: [4, 4, 4, 4, 4, 4]
 ic_dim: 64
-gen_dim: [200, 200, 200, 200]
-fac_dim: [100, 100, 100, 100]
+gen_dim: [200, 200, 200, 200, 200, 200]
+fac_dim: [100, 100, 100, 100, 100, 100]
 
 # --------- readin / readout --------- #
 readin:
@@ -24,52 +24,72 @@ region_readin:
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features:  9950 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
+        in_features:  1500 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
         out_features:  ${model.ci_enc_dim[0]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 250 #${model.recon_data_dim[1]}
+        in_features: 11150 #${model.recon_data_dim[1]}
         out_features: ${model.ci_enc_dim[1]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 50 #${model.recon_data_dim[2]}
+        in_features: 250 #${model.recon_data_dim[2]}
         out_features: ${model.ci_enc_dim[2]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 14100 #${model.recon_data_dim[3]}
+        in_features: 1300 #${model.recon_data_dim[3]}
         out_features: ${model.ci_enc_dim[3]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 2950 #${model.recon_data_dim[4]}
+        out_features: ${model.ci_enc_dim[4]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 6400 #${model.recon_data_dim[5]}
+        out_features: ${model.ci_enc_dim[5]}
         
 region_std:
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features:  9950 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
+        in_features:  1500 #${model.recon_data_dim[0] * model.ic_enc_seq_len}
         out_features:  ${model.ci_enc_dim[0]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 250 #${model.recon_data_dim[1]}
+        in_features: 11150 #${model.recon_data_dim[1]}
         out_features: ${model.ci_enc_dim[1]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 50 #${model.recon_data_dim[2]}
+        in_features: 250 #${model.recon_data_dim[2]}
         out_features: ${model.ci_enc_dim[2]}
   - _target_: torch.nn.ModuleList
     modules:
       - _target_: torch.nn.Linear
-        in_features: 14100 #${model.recon_data_dim[3]}
+        in_features: 1300 #${model.recon_data_dim[3]}
         out_features: ${model.ci_enc_dim[3]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 2950 #${model.recon_data_dim[4]}
+        out_features: ${model.ci_enc_dim[4]}
+  - _target_: torch.nn.ModuleList
+    modules:
+      - _target_: torch.nn.Linear
+        in_features: 6400 #${model.recon_data_dim[5]}
+        out_features: ${model.ci_enc_dim[5]}
         
 readout:
   _target_: torch.nn.ModuleList
   modules:
     - _target_: lfads_torch.modules.readin_readout.FanInLinear
-      in_features: 400
-      out_features: 487
+      in_features: 600
+      out_features: 471
 
 # --------- augmentation --------- #
 train_aug_stack:
@@ -105,7 +125,23 @@ co_prior:
     tau: 10.0
     nvar: 0.1
     shape: ${model.co_dim[3]}
+  - _target_: lfads_torch.modules.priors.AutoregressiveMultivariateNormal
+    tau: 10.0
+    nvar: 0.1
+    shape: ${model.co_dim[4]}
+  - _target_: lfads_torch.modules.priors.AutoregressiveMultivariateNormal
+    tau: 10.0
+    nvar: 0.1
+    shape: ${model.co_dim[5]}
 ic_prior:
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
+  - _target_: lfads_torch.modules.priors.MultivariateNormal
+    mean: 0
+    variance: 0.1
+    shape: ${model.ic_dim}
   - _target_: lfads_torch.modules.priors.MultivariateNormal
     mean: 0
     variance: 0.1
@@ -145,10 +181,64 @@ weight_decay: 0.0
 l2_start_epoch: 0
 l2_increase_epoch: 80
 l2_ic_enc_scale: 0.0
-l2_ci_enc_scale: [1.0, 1.0, 1.0, 1.0]
-l2_gen_scale: [1.0, 1.0, 1.0, 1.0]
-l2_con_scale: [1.0, 1.0, 1.0, 1.0]
-kl_start_epoch: 10
-kl_increase_epoch: 80
-kl_ic_scale: [1.0, 1.0, 1.0, 1.0]
-kl_co_scale: [1.0, 1.0, 1.0, 1.0]
+l2_ci_enc_scale: [1.0, 1.0, 1.0, 1.0, 1.0, 1.0]
+l2_gen_scale: 
+    - ${model.l2_gen_scale_BS} 
+    - ${model.l2_gen_scale_CTX} 
+    - ${model.l2_gen_scale_FRP} 
+    - ${model.l2_gen_scale_HPF}
+    - ${model.l2_gen_scale_MB}
+    - ${model.l2_gen_scale_TH}
+l2_con_scale: 
+    - ${model.l2_con_scale_BS} 
+    - ${model.l2_con_scale_CTX} 
+    - ${model.l2_con_scale_FRP} 
+    - ${model.l2_con_scale_HPF}
+    - ${model.l2_con_scale_MB}
+    - ${model.l2_con_scale_TH}
+kl_start_epoch: 50
+kl_increase_epoch: 100
+kl_ic_scale: 
+    - ${model.kl_ic_scale_BS}
+    - ${model.kl_ic_scale_CTX}
+    - ${model.kl_ic_scale_FRP}
+    - ${model.kl_ic_scale_HPF}
+    - ${model.kl_ic_scale_MB}
+    - ${model.kl_ic_scale_TH}
+kl_co_scale: 
+    - ${model.kl_co_scale_BS} 
+    - ${model.kl_co_scale_CTX}
+    - ${model.kl_co_scale_FRP} 
+    - ${model.kl_co_scale_HPF}
+    - ${model.kl_co_scale_MB}
+    - ${model.kl_co_scale_TH}
+
+kl_co_scale_BS: 1.0
+kl_ic_scale_BS: 1.0
+l2_gen_scale_BS: 1.0
+l2_con_scale_BS: 1.0
+
+kl_co_scale_CTX: 1.0
+kl_ic_scale_CTX: 1.0
+l2_gen_scale_CTX: 1.0
+l2_con_scale_CTX: 1.0 
+
+kl_co_scale_FRP: 1.0
+kl_ic_scale_FRP: 1.0
+l2_gen_scale_FRP: 1.0
+l2_con_scale_FRP: 1.0
+
+kl_co_scale_HPF: 1.0
+kl_ic_scale_HPF: 1.0
+l2_gen_scale_HPF: 1.0
+l2_con_scale_HPF: 1.0
+
+kl_co_scale_MB: 1.0
+kl_ic_scale_MB: 1.0
+l2_gen_scale_MB: 1.0
+l2_con_scale_MB: 1.0
+
+kl_co_scale_TH: 1.0
+kl_ic_scale_TH: 1.0
+l2_gen_scale_TH: 1.0
+l2_con_scale_TH: 1.0

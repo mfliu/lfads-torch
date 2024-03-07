@@ -67,6 +67,36 @@ class LFADS(pl.LightningModule):
         kl_increase_epoch: int,
         kl_ic_scale: List[float],
         kl_co_scale: List[float],
+        
+        kl_co_scale_BS: float,
+        kl_ic_scale_BS: float,
+        l2_gen_scale_BS: float,
+        l2_con_scale_BS: float,
+
+        kl_co_scale_CTX: float,
+        kl_ic_scale_CTX: float,
+        l2_gen_scale_CTX: float,
+        l2_con_scale_CTX: float, 
+
+        kl_co_scale_FRP: float,
+        kl_ic_scale_FRP: float,
+        l2_gen_scale_FRP: float,
+        l2_con_scale_FRP: float,
+        
+        kl_co_scale_HPF: float,
+        kl_ic_scale_HPF: float,
+        l2_gen_scale_HPF: float,
+        l2_con_scale_HPF: float,
+        
+        kl_co_scale_MB: float,
+        kl_ic_scale_MB: float,
+        l2_gen_scale_MB: float,
+        l2_con_scale_MB: float,
+
+        kl_co_scale_TH: float,
+        kl_ic_scale_TH: float,
+        l2_gen_scale_TH: float,
+        l2_con_scale_TH: float
     ):
         """
         Initialize the LFADS model.
@@ -255,12 +285,12 @@ class LFADS(pl.LightningModule):
         ## MFL: In this instance, ic_samp shouldn't be used, because g0 for each area should just be some linear transformation 
         ## on the pre-trial activity of each region. ALM encoder and controller only determines the controller input for each region
         ## MFL: region_readout is a List of ModuleLists--each ModuleList is a list of linear layers for a region in each session
+        ## MFL: recon_region_map is a List of ints where each element is the number of neurons in each region (so idx of first region is 0:0th element of this list)
         all_ic_samp = []
         all_ic_std = []
         for region_idx in range(0, len(self.region_readin)):
             region_name = self.hparams.recon_region_name[region_idx]
             recon_region_map = batch[0].recon_region_map[0]
-            
             region_start = 0
             if region_idx > 0:
                 region_start = recon_region_map[region_idx-1]
@@ -301,6 +331,7 @@ class LFADS(pl.LightningModule):
                 gen_inputs,
                 factors,
             ) = decoder(ci_samp, ci[dIdx], ext_input, sample_posteriors=sample_posteriors)
+            #print(gen_init.shape, gen_states.shape, con_states.shape, co_means.shape, co_stds.shape, gen_inputs.shape, factors.shape)
             all_gen_init.append(gen_init)
             all_gen_states.append(gen_states)
             all_con_states.append(con_states)
@@ -322,6 +353,7 @@ class LFADS(pl.LightningModule):
         # Convert the factors representation into output distribution parameters
         all_factors = torch.split(all_factors, batch_sizes)
         output_params = [self.readout[s](f) for s, f in zip(sessions, all_factors)]
+        
         # Separate parameters of the output distribution
         output_params = [
             self.recon[s].reshape_output_params(op)
@@ -435,11 +467,13 @@ class LFADS(pl.LightningModule):
         output = self.forward(
             batch, sample_posteriors=hps.variational, output_means=False
         )
+        
         # Compute the reconstruction loss
         recon_all = [
             self.recon[s].compute_loss(batch[s].recon_data, output[s].output_params)
             for s in sessions
         ]
+        
         # Apply losses processing
         recon_all = [
             aug_stack.process_losses(ra, batch[s], self.log, split)

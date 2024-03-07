@@ -1,6 +1,6 @@
 _target_: lfads_torch.datamodules.BasicDataModule
-datafile_pattern: "/results/mesoscale_lfads_data/sub-480135/sub-480135_ses-20210225T155426_lfads.h5"
+datafile_pattern: "/results/mesoscale_lfads_data/sub-455219/sub-455219_ses-20190808T140448_lfads.h5"
 attr_keys:
   - train_trial_idx
   - valid_trial_idx
-batch_size: 64
+batch_size: 128

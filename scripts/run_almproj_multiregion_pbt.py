@@ -29,25 +29,35 @@ HYPERPARAM_SPACE = {
     "model.train_aug_stack.transforms.0.cd_rate": HyperParam(
         0.01, 0.7, explore_wt=0.3, enforce_limits=True, init=0.5, sample_fn="uniform"
     ),
-    # "model.kl_co_scale.0": HyperParam(1e-6, 1e-4, explore_wt=0.8),
-    # "model.kl_ic_scale.1": HyperParam(1e-6, 1e-3, explore_wt=0.8),
-    # "model.l2_gen_scale.2": HyperParam(1e-4, 1e-0, explore_wt=0.8),
-    # "model.l2_con_scale.3": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    "model.kl_co_scale_BS": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_BS": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_BS": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_BS": HyperParam(1e-6, 10, explore_wt=0.8),
     
-#     "model.kl_co_scale_FRP": HyperParam(1e-6, 1e-4, explore_wt=0.8),
-#     "model.kl_ic_scale_FRP": HyperParam(1e-6, 1e-3, explore_wt=0.8),
-#     "model.l2_gen_scale_FRP": HyperParam(1e-4, 1e-0, explore_wt=0.8),
-#     "model.l2_con_scale_FRP": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    "model.kl_co_scale_CTX": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_CTX": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_CTX": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_CTX": HyperParam(1e-6, 10, explore_wt=0.8),
     
-#     "model.kl_co_scale_STR": HyperParam(1e-6, 1e-4, explore_wt=0.8),
-#     "model.kl_ic_scale_STR": HyperParam(1e-6, 1e-3, explore_wt=0.8),
-#     "model.l2_gen_scale_STR": HyperParam(1e-4, 1e-0, explore_wt=0.8),
-#     "model.l2_con_scale_STR": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    "model.kl_co_scale_FRP": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_FRP": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_FRP": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_FRP": HyperParam(1e-6, 10, explore_wt=0.8),
     
-#     "model.kl_co_scale_TH": HyperParam(1e-6, 1e-4, explore_wt=0.8),
-#     "model.kl_ic_scale_TH": HyperParam(1e-6, 1e-3, explore_wt=0.8),
-#     "model.l2_gen_scale_TH": HyperParam(1e-4, 1e-0, explore_wt=0.8),
-#     "model.l2_con_scale_TH": HyperParam(1e-4, 1e-0, explore_wt=0.8),
+    "model.kl_co_scale_HPF": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_HPF": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_HPF": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_HPF": HyperParam(1e-6, 10, explore_wt=0.8),
+    
+    "model.kl_co_scale_MB": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_MB": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_MB": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_MB": HyperParam(1e-6, 10, explore_wt=0.8),
+    
+    "model.kl_co_scale_TH": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.kl_ic_scale_TH": HyperParam(1e-6, 1, explore_wt=0.8),
+    "model.l2_gen_scale_TH": HyperParam(1e-6, 10, explore_wt=0.8),
+    "model.l2_con_scale_TH": HyperParam(1e-6, 10, explore_wt=0.8),
 }
 # ------------------------------
 
