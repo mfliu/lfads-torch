@@ -68,11 +68,14 @@ class LFADS(pl.LightningModule):
         kl_ic_scale: List[float],
         kl_co_scale: List[float],
         
+<<<<<<< HEAD
         kl_co_scale_BS: float,
         kl_ic_scale_BS: float,
         l2_gen_scale_BS: float,
         l2_con_scale_BS: float,
 
+=======
+>>>>>>> c3e6c47abde239856b5e0d56f96e2278c12e7c25
         kl_co_scale_CTX: float,
         kl_ic_scale_CTX: float,
         l2_gen_scale_CTX: float,
@@ -82,6 +85,7 @@ class LFADS(pl.LightningModule):
         kl_ic_scale_FRP: float,
         l2_gen_scale_FRP: float,
         l2_con_scale_FRP: float,
+<<<<<<< HEAD
         
         kl_co_scale_HPF: float,
         kl_ic_scale_HPF: float,
@@ -92,6 +96,13 @@ class LFADS(pl.LightningModule):
         kl_ic_scale_MB: float,
         l2_gen_scale_MB: float,
         l2_con_scale_MB: float,
+=======
+
+        kl_co_scale_STR: float,
+        kl_ic_scale_STR: float,
+        l2_gen_scale_STR: float,
+        l2_con_scale_STR: float,
+>>>>>>> c3e6c47abde239856b5e0d56f96e2278c12e7c25
 
         kl_co_scale_TH: float,
         kl_ic_scale_TH: float,

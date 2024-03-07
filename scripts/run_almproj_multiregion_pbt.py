@@ -29,6 +29,7 @@ HYPERPARAM_SPACE = {
     "model.train_aug_stack.transforms.0.cd_rate": HyperParam(
         0.01, 0.7, explore_wt=0.3, enforce_limits=True, init=0.5, sample_fn="uniform"
     ),
+
     "model.kl_co_scale_BS": HyperParam(1e-6, 1, explore_wt=0.8),
     "model.kl_ic_scale_BS": HyperParam(1e-6, 1, explore_wt=0.8),
     "model.l2_gen_scale_BS": HyperParam(1e-6, 10, explore_wt=0.8),
