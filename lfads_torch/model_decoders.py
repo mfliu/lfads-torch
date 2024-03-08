@@ -68,14 +68,12 @@ class LFADS(pl.LightningModule):
         kl_ic_scale: List[float],
         kl_co_scale: List[float],
         
-<<<<<<< HEAD
         kl_co_scale_BS: float,
         kl_ic_scale_BS: float,
         l2_gen_scale_BS: float,
         l2_con_scale_BS: float,
 
-=======
->>>>>>> c3e6c47abde239856b5e0d56f96e2278c12e7c25
+
         kl_co_scale_CTX: float,
         kl_ic_scale_CTX: float,
         l2_gen_scale_CTX: float,
@@ -85,7 +83,6 @@ class LFADS(pl.LightningModule):
         kl_ic_scale_FRP: float,
         l2_gen_scale_FRP: float,
         l2_con_scale_FRP: float,
-<<<<<<< HEAD
         
         kl_co_scale_HPF: float,
         kl_ic_scale_HPF: float,
@@ -96,13 +93,6 @@ class LFADS(pl.LightningModule):
         kl_ic_scale_MB: float,
         l2_gen_scale_MB: float,
         l2_con_scale_MB: float,
-=======
-
-        kl_co_scale_STR: float,
-        kl_ic_scale_STR: float,
-        l2_gen_scale_STR: float,
-        l2_con_scale_STR: float,
->>>>>>> c3e6c47abde239856b5e0d56f96e2278c12e7c25
 
         kl_co_scale_TH: float,
         kl_ic_scale_TH: float,
@@ -506,11 +496,13 @@ class LFADS(pl.LightningModule):
         co_bps = torch.mean(torch.stack(sess_co_bps))
         fp_bps = torch.mean(torch.stack(sess_fp_bps))
         # Aggregate the heldout cost for logging
+
         if not hps.recon_reduce_mean:
-            recon_all = [torch.sum(ra, dim=(1, 2)) for ra in recon_all]
+            recon_all = [torch.sum(ra, dim=(1, 2)) for ra in recon_all] ##sum across time, then across neurons
         # Compute reconstruction loss for each session
         sess_recon = [ra.mean() for ra in recon_all]
         recon = torch.mean(torch.stack(sess_recon))
+        
         # Compute the L2 penalty on recurrent weights
         l2 = compute_l2_penalty(self, self.hparams)
         # Collect posterior parameters for fast KL calculation

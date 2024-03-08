@@ -68,6 +68,7 @@ def attach_tensors(datamodule, data_dicts: List[dict], extra_keys: List[str] = [
             truth = truth[:, hps.dm_ic_enc_seq_len :, :]
             # Extract data for any extra keys
             other = [to_tensor(data_dict[f"{prefix}_{k}"]) for k in extra_keys]
+            #print("datamodule", recon_data.shape, encod_data.shape)
             return (
                 SessionBatch(
                     encod_data=encod_data,

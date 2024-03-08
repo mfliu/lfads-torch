@@ -3,4 +3,4 @@ datafile_pattern: "/results/mesoscale_lfads_data/sub-455219/sub-455219_ses-20190
 attr_keys:
   - train_trial_idx
   - valid_trial_idx
-batch_size: 128
+batch_size: 64
